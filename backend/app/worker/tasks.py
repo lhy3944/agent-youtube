@@ -24,6 +24,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+# 모든 모델을 import하여 SQLAlchemy가 relationship을 해석할 수 있도록 한다
+from app.models.chat import ChatMessage, ChatSession  # noqa: F401
 from app.models.ingest_job import IngestJob
 from app.models.source import Source
 from app.models.transcript_segment import TranscriptSegment
