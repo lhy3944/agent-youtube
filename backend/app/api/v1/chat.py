@@ -29,16 +29,26 @@ from app.services.retrieval import retrieve_relevant_segments
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-@router.post("/ask", response_model=ChatAskResponse)
+@router.post(
+    "/ask",
+    response_model=ChatAskResponse,
+    summary="영상 기반 질문 답변",
+    responses={
+        200: {"description": "답변 텍스트 + Citation(근거 타임스탬프 구간) 목록"},
+        400: {"description": "소스가 아직 처리 중이거나 실패 상태"},
+        404: {"description": "소스 또는 세션을 찾을 수 없음"},
+    },
+)
 async def ask_question(
     body: ChatAskRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """영상 내용을 기반으로 질문에 답변한다.
+    """등록된 영상의 내용을 기반으로 자연어 질문에 답변한다.
 
-    - 소스가 ready/partial_ready 상태가 아니면 질문 불가
-    - session_id가 없으면 새 세션 생성, 있으면 기존 세션의 대화 이어가기
+    - 소스가 `ready` 또는 `partial_ready` 상태일 때만 질문 가능
+    - `session_id`가 없으면 새 세션이 자동 생성되고, 있으면 이전 대화 맥락이 유지된다
     - 답변에는 반드시 Citation(근거 타임스탬프 구간)이 포함된다
+    - 영상에 없는 내용에 대해서는 "확인 불가"를 명시한다
     """
     # 소스 존재 여부 및 상태 검증
     source = await db.get(Source, body.source_id)

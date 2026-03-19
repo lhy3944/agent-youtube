@@ -30,17 +30,26 @@ from app.worker.tasks import ingest_youtube_source
 router = APIRouter(prefix="/sources", tags=["sources"])
 
 
-@router.post("/youtube", response_model=SourceCreateResponse, status_code=201)
+@router.post(
+    "/youtube",
+    response_model=SourceCreateResponse,
+    status_code=201,
+    summary="YouTube URL로 소스 등록",
+    responses={
+        201: {"description": "소스 등록 성공. 동일 URL이 이미 등록된 경우 기존 소스 정보를 반환한다."},
+        400: {"description": "유효하지 않은 YouTube URL"},
+    },
+)
 async def create_youtube_source(
     body: YouTubeSourceCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    """YouTube URL을 소스로 등록한다.
+    """YouTube URL을 소스로 등록하고 비동기 Ingest 파이프라인을 시작한다.
 
-    1. URL 유효성 검증 → videoId 추출
-    2. 동일 videoId로 이미 등록된 소스가 있으면 기존 소스 반환 (중복 방지)
-    3. Source + IngestJob 레코드 생성
-    4. Celery 워커에 비동기 Ingest 태스크 디스패치
+    - URL에서 videoId를 추출하고 유효성을 검증한다
+    - 동일 videoId가 이미 등록되어 있으면 기존 소스의 ID와 상태를 반환한다 (중복 방지)
+    - 새 소스인 경우 Source + IngestJob 레코드를 생성하고 Celery 워커에 처리를 위임한다
+    - 응답은 즉시 반환되며, 실제 처리는 백그라운드에서 비동기로 진행된다
     """
     url_str = str(body.url)
     if not validate_youtube_url(url_str):
@@ -75,15 +84,24 @@ async def create_youtube_source(
     return SourceCreateResponse(source_id=source.id, status="pending")
 
 
-@router.get("/{source_id}", response_model=SourceResponse)
+@router.get(
+    "/{source_id}",
+    response_model=SourceResponse,
+    summary="소스 상태 및 메타데이터 조회",
+    responses={
+        200: {"description": "소스 상세 정보 (메타데이터, 상태, 진행률, 요약 포함)"},
+        404: {"description": "소스를 찾을 수 없음"},
+    },
+)
 async def get_source(
     source_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     """소스의 상태, 메타데이터, 처리 진행률을 조회한다.
 
-    프론트엔드에서 processing 상태일 때 2초 간격으로 polling하여
-    진행률(step, percent)을 실시간으로 표시한다.
+    - processing 상태일 때 progress 필드에 현재 단계(step)와 진행률(percent)이 포함된다
+    - 프론트엔드에서 2초 간격으로 polling하여 실시간 진행 상황을 표시하는 데 사용된다
+    - ready/partial_ready 상태에서는 summary가 포함될 수 있다
     """
     source = await db.get(Source, source_id)
     if not source:
@@ -108,12 +126,24 @@ async def get_source(
     return response
 
 
-@router.get("/{source_id}/segments", response_model=list[SegmentResponse])
+@router.get(
+    "/{source_id}/segments",
+    response_model=list[SegmentResponse],
+    summary="세그먼트 목록 조회 (디버깅용)",
+    responses={
+        200: {"description": "세그먼트 목록 (segment_index 순)"},
+        404: {"description": "소스를 찾을 수 없음"},
+    },
+)
 async def get_segments(
     source_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
-    """소스의 자막 세그먼트 목록을 순서대로 조회한다. (디버깅/관리자 확인용)"""
+    """소스의 자막 세그먼트 목록을 순서대로 조회한다.
+
+    디버깅 및 관리자 확인용. 각 세그먼트의 텍스트, 타임스탬프, 토큰 수를 반환한다.
+    임베딩 벡터는 응답에 포함되지 않는다.
+    """
     source = await db.get(Source, source_id)
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")

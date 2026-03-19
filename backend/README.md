@@ -115,6 +115,18 @@ URL 입력 → videoId 추출 → Source 레코드 생성 → Celery 태스크 �
 | `partial_ready` | 요약 생성 실패했으나 질문은 가능 |
 | `failed` | 처리 실패 |
 
+## API 문서 (Swagger UI)
+
+서버 실행 후 브라우저에서 아래 URL로 접속하면 **인터랙티브 API 문서**를 확인할 수 있습니다.
+
+| 문서 | URL | 설명 |
+|------|-----|------|
+| **Swagger UI** | http://localhost:8000/docs | 인터랙티브 API 테스트 (Try it out) |
+| **ReDoc** | http://localhost:8000/redoc | 읽기 편한 API 레퍼런스 |
+| **OpenAPI JSON** | http://localhost:8000/openapi.json | OpenAPI 3.1 스펙 (자동 생성) |
+
+Swagger UI에서는 각 엔드포인트의 요청/응답 스키마, 필드 설명, 예시값을 확인하고 직접 API를 호출해볼 수 있습니다.
+
 ## API 엔드포인트
 
 | 메서드 | 경로 | 설명 |
