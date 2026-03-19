@@ -64,10 +64,13 @@ YouTube 영상 URL을 소스로 등록하면, 영상의 자막을 자동으로 �
     ],
 )
 
-# 프론트엔드 개발 서버에서의 CORS 요청 허용
+# 프론트엔드에서의 CORS 요청 허용 (개발 환경 + 프로덕션 환경)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://agent.devbanjang.cloud",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
