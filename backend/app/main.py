@@ -2,18 +2,29 @@
 FastAPI 애플리케이션 진입점.
 
 CORS 미들웨어를 설정하고, API 라우터(sources, chat)를 /api/v1 프리픽스로 등록한다.
-프론트엔드(localhost:3000)에서의 교차 출처 요청을 허용한다.
+프론트엔드에서의 교차 출처 요청을 허용한다.
 
-Swagger UI: http://localhost:8000/docs
-ReDoc:      http://localhost:8000/redoc
-OpenAPI JSON: http://localhost:8000/openapi.json
+Swagger UI: /docs
+ReDoc:      /redoc
+OpenAPI JSON: /openapi.json
 """
 
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.v1.chat import router as chat_router
 from app.api.v1.sources import router as sources_router
+
+logger = logging.getLogger(__name__)
+
+# 허용할 프론트엔드 Origin 목록
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "https://agent.devbanjang.cloud",
+]
 
 # Swagger UI에 표시되는 API 문서 메타데이터
 app = FastAPI(
@@ -67,14 +78,35 @@ YouTube 영상 URL을 소스로 등록하면, 영상의 자막을 자동으로 �
 # 프론트엔드에서의 CORS 요청 허용 (개발 환경 + 프로덕션 환경)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://agent.devbanjang.cloud",
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """처리되지 않은 예외를 잡아 CORS 헤더가 포함된 500 응답을 반환한다.
+
+    FastAPI의 CORSMiddleware는 정상 응답에만 CORS 헤더를 추가하므로,
+    unhandled exception이 발생하면 브라우저에서 CORS 오류로 표시될 수 있다.
+    이 핸들러가 그 문제를 방지한다.
+    """
+    logger.exception(f"Unhandled error on {request.method} {request.url}: {exc}")
+
+    origin = request.headers.get("origin", "")
+    headers = {}
+    if origin in ALLOWED_ORIGINS:
+        headers["access-control-allow-origin"] = origin
+        headers["access-control-allow-credentials"] = "true"
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {type(exc).__name__}: {str(exc)}"},
+        headers=headers,
+    )
+
 
 # API v1 라우터 등록
 app.include_router(sources_router, prefix="/api/v1")

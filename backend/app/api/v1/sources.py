@@ -7,6 +7,7 @@ Source API 라우터.
 - GET  /sources/{id}/segments : 세그먼트 목록 조회 (디버깅/관리용)
 """
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,7 +26,8 @@ from app.schemas.source import (
     YouTubeSourceCreate,
 )
 from app.services.youtube import extract_video_id, validate_youtube_url
-from app.worker.tasks import ingest_youtube_source
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
@@ -79,9 +81,20 @@ async def create_youtube_source(
     await db.commit()
 
     # Celery 워커에 비동기 Ingest 태스크 전달
-    ingest_youtube_source.delay(str(source.id), str(job.id))
+    # Redis 연결 실패 시에도 소스 등록 자체는 성공하도록 예외 처리
+    try:
+        from app.worker.tasks import ingest_youtube_source
+        ingest_youtube_source.delay(str(source.id), str(job.id))
+    except Exception as e:
+        logger.error(f"Failed to dispatch ingest task (Redis may be down): {e}")
+        # 태스크 디스패치 실패 시 소스 상태를 failed로 업데이트
+        source.status = "failed"
+        source.error_message = f"Task dispatch failed: {e}"
+        job.status = "failed"
+        job.error_message = str(e)
+        await db.commit()
 
-    return SourceCreateResponse(source_id=source.id, status="pending")
+    return SourceCreateResponse(source_id=source.id, status=source.status)
 
 
 @router.get(
