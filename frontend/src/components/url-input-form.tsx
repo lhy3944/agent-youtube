@@ -1,5 +1,15 @@
 "use client";
 
+/**
+ * YouTube URL 입력 폼 컴포넌트.
+ *
+ * 사용자가 YouTube URL을 입력하고 등록 버튼을 클릭하면:
+ * 1. createYouTubeSource API를 호출하여 소스를 등록한다
+ * 2. 성공 시 소스 상세 페이지(/source/{id})로 자동 이동한다
+ *
+ * useMutation으로 API 호출 상태(로딩, 에러)를 관리한다.
+ */
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
@@ -12,6 +22,7 @@ export function UrlInputForm() {
   const mutation = useMutation({
     mutationFn: (url: string) => createYouTubeSource(url),
     onSuccess: (data) => {
+      // 소스 등록 성공 → 상세 페이지로 이동
       router.push(`/source/${data.source_id}`);
     },
   });

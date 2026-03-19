@@ -1,5 +1,17 @@
+/**
+ * 소스 처리 상태 배지 컴포넌트.
+ *
+ * 상태별로 색상과 한글 레이블을 매핑하여 표시한다:
+ * - pending     → 대기 중 (노란색)
+ * - processing  → 처리 중 (파란색)
+ * - ready       → 준비 완료 (초록색)
+ * - partial_ready → 부분 완료 (연한 초록색, 요약만 실패)
+ * - failed      → 실패 (빨간색)
+ */
+
 import { cn } from "@/lib/utils";
 
+// 상태별 표시 설정: 한글 레이블 + Tailwind 색상 클래스
 const statusConfig: Record<string, { label: string; className: string }> = {
   pending: { label: "대기 중", className: "bg-yellow-100 text-yellow-800" },
   processing: { label: "처리 중", className: "bg-blue-100 text-blue-800" },

@@ -1,3 +1,10 @@
+/**
+ * 메인 페이지 (/).
+ *
+ * 앱의 진입점으로, YouTube URL 입력 폼을 중앙에 표시한다.
+ * 사용자가 URL을 입력하고 등록하면 소스 상세 페이지로 이동한다.
+ */
+
 import { UrlInputForm } from "@/components/url-input-form";
 
 export default function HomePage() {

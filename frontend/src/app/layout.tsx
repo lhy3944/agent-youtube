@@ -1,3 +1,10 @@
+/**
+ * 루트 레이아웃.
+ *
+ * 앱 전체의 HTML 구조, 폰트, 메타데이터를 설정하고,
+ * React Query Provider로 모든 페이지를 감싼다.
+ */
+
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
