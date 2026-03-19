@@ -10,15 +10,34 @@ OpenAPI JSON: /openapi.json
 """
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app.api.v1.chat import router as chat_router
 from app.api.v1.sources import router as sources_router
+from app.core.database import Base, engine
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """앱 시작 시 pgvector 확장을 활성화하고 DB 테이블을 자동 생성한다."""
+    # 모든 모델을 import하여 Base.metadata에 등록
+    import app.models.chat  # noqa: F401
+    import app.models.ingest_job  # noqa: F401
+    import app.models.source  # noqa: F401
+    import app.models.transcript_segment  # noqa: F401
+
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database tables created successfully")
+    yield
 
 # 허용할 프론트엔드 Origin 목록
 ALLOWED_ORIGINS = [
@@ -30,6 +49,7 @@ ALLOWED_ORIGINS = [
 app = FastAPI(
     title="YouTube QA Agent API",
     version="0.1.0",
+    lifespan=lifespan,
     summary="YouTube 영상 URL을 기반으로 영상 내용을 분석하고 질문에 답변하는 에이전트 API",
     description="""
 ## 개요
