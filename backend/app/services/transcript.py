@@ -3,12 +3,12 @@
 
 주요 기능:
 - youtube-transcript-api를 사용하여 YouTube 자막을 가져온다
-- 한국어(ko) 우선, 영어(en) 대체로 자막 언어를 선택한다
+- 자막 확보 전략 (우선순위):
+  1. 수동 자막: 한국어(ko) → 영어(en)
+  2. 자동 생성 자막: 한국어(ko) → 영어(en)
+  3. 사용 가능한 아무 자막이라도 가져오기
 - 원본 자막 데이터를 {start_sec, end_sec, text} 형식으로 정규화한다
 - 노이즈 텍스트([음악], [Music] 등)를 제거한다
-
-자막 확보 실패 시 STT fallback이 호출되어야 하며,
-현재 STT는 미구현 상태이다.
 """
 
 import logging
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def fetch_captions(video_id: str, preferred_lang: str = "ko") -> list[dict] | None:
-    """YouTube 자막을 가져온다.
+    """YouTube 자막을 가져온다. 수동 자막 → 자동 생성 자막 순으로 시도한다.
 
     Args:
         video_id: YouTube 영상 ID (11자리)
@@ -28,21 +28,50 @@ def fetch_captions(video_id: str, preferred_lang: str = "ko") -> list[dict] | No
     Returns:
         자막 세그먼트 리스트 [{text, start, duration}] 또는 실패 시 None
     """
+    ytt_api = YouTubeTranscriptApi()
+
+    # 전략 1: 지정 언어의 수동/자동 자막 직접 요청
     try:
-        ytt_api = YouTubeTranscriptApi()
-        # 한국어 → 영어 순서로 자막 확보 시도
         transcript = ytt_api.fetch(video_id, languages=[preferred_lang, "en"])
-        segments = []
-        for entry in transcript.snippets:
-            segments.append({
-                "text": entry.text,
-                "start": entry.start,
-                "duration": entry.duration,
-            })
-        return segments
+        return _extract_segments(transcript)
     except Exception as e:
-        logger.warning(f"Caption fetch failed for {video_id}: {e}")
-        return None
+        logger.info(f"Direct fetch failed for {video_id} ({preferred_lang}, en): {e}")
+
+    # 전략 2: 사용 가능한 자막 목록을 조회하여 자동 생성 자막 포함 재시도
+    try:
+        transcript_list = ytt_api.list(video_id)
+
+        # 사용 가능한 자막에서 선호 언어 순으로 찾기
+        for lang in [preferred_lang, "en"]:
+            for t in transcript_list:
+                if t.language_code == lang:
+                    transcript = t.fetch()
+                    logger.info(f"Found caption for {video_id}: lang={lang}")
+                    return _extract_segments(transcript)
+
+        # 선호 언어가 없으면 아무 자막이라도 가져오기
+        if transcript_list:
+            first = transcript_list[0]
+            transcript = first.fetch()
+            logger.info(f"Using fallback caption for {video_id}: lang={first.language_code}")
+            return _extract_segments(transcript)
+
+    except Exception as e:
+        logger.warning(f"Caption list/fetch failed for {video_id}: {e}")
+
+    return None
+
+
+def _extract_segments(transcript) -> list[dict]:
+    """Transcript 객체에서 세그먼트를 추출한다."""
+    segments = []
+    for entry in transcript.snippets:
+        segments.append({
+            "text": entry.text,
+            "start": entry.start,
+            "duration": entry.duration,
+        })
+    return segments
 
 
 def normalize_transcript(raw_segments: list[dict]) -> list[dict]:
